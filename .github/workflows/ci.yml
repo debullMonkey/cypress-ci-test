@@ -91,7 +91,7 @@ jobs:
           docker run -d \
             --name frontend-${{ matrix.env }}-${{ github.run_id }} \
             -p ${{ matrix.frontend_port }}:80 \
-            --add-host host.docker.internal:host-gateway \ # 👈 [핵심] 리눅스에서 host.docker.internal을 인식하게 해주는 마법의 옵션
+            --add-host host.docker.internal:host-gateway \ 
             -e BACKEND_URL=http://host.docker.internal:${{ matrix.backend_port }} \
             practice-frontend:latest
 
