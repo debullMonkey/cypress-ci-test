@@ -91,6 +91,7 @@ jobs:
           docker run -d \
             --name frontend-${{ matrix.env }}-${{ github.run_id }} \
             -p ${{ matrix.frontend_port }}:80 \
+            --add-host host.docker.internal:host-gateway \ # 👈 [핵심] 리눅스에서 host.docker.internal을 인식하게 해주는 마법의 옵션
             -e BACKEND_URL=http://host.docker.internal:${{ matrix.backend_port }} \
             practice-frontend:latest
 
@@ -99,8 +100,10 @@ jobs:
           echo "Waiting for backend..."
           timeout 60 bash -c \
             'until curl -sf http://localhost:${{ matrix.backend_port }}/api/health; do sleep 3; done'
+          
           echo "Waiting for frontend..."
-          timeout 30 bash -c \
+          # 👈 타임아웃을 30초에서 60초로 넉넉하게 늘려줍니다.
+          timeout 60 bash -c \
             'until curl -sf http://localhost:${{ matrix.frontend_port }}; do sleep 2; done'
 
       - name: Install Cypress
