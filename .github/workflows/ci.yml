@@ -10,7 +10,7 @@ jobs:
   # ── 1. Docker 이미지 빌드 ─────────────────────────────────
   build:
     name: Build Docker Images
-    runs-on: self-hosted  # 사내 VM의 GitHub Actions Runner
+    runs-on: ubuntu-latest  # 사내 VM의 GitHub Actions Runner
     outputs:
       backend-image: ${{ steps.meta-backend.outputs.tags }}
       frontend-image: ${{ steps.meta-frontend.outputs.tags }}
@@ -33,7 +33,7 @@ jobs:
   cypress:
     name: Cypress [${{ matrix.env }}]
     needs: build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false   # 하나 실패해도 나머지 환경은 계속 테스트
       matrix:
@@ -115,7 +115,7 @@ jobs:
     name: Auto Merge on Success
     needs: cypress
     if: success() && github.event_name == 'pull_request'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       contents: write
@@ -139,7 +139,7 @@ jobs:
     name: Handle Failure
     needs: cypress
     if: failure()
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       contents: write
