@@ -1,0 +1,17 @@
+{
+  "name": "practice-cypress",
+  "version": "1.0.0",
+  "scripts": {
+    "cy:open": "cypress open",
+    "cy:run": "cypress run",
+    "cy:run:env1": "cypress run --spec 'cypress/e2e/env1.cy.js'",
+    "cy:run:env2": "cypress run --spec 'cypress/e2e/env2.cy.js'",
+    "cy:run:env3": "cypress run --spec 'cypress/e2e/env3.cy.js'",
+    "cy:run:env4": "cypress run --spec 'cypress/e2e/env4.cy.js'",
+    "cy:run:env5": "cypress run --spec 'cypress/e2e/env5.cy.js'",
+    "cy:run:all": "cypress run --spec 'cypress/e2e/*.cy.js'"
+  },
+  "devDependencies": {
+    "cypress": "^13.6.0"
+  }
+}

@@ -1,0 +1,188 @@
+name: CI - Cypress E2E Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # ── 1. Docker 이미지 빌드 ─────────────────────────────────
+  build:
+    name: Build Docker Images
+    runs-on: self-hosted  # 사내 VM의 GitHub Actions Runner
+    outputs:
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Backend Image
+        run: |
+          docker build -t practice-backend:${{ github.sha }} ./backend
+          docker tag practice-backend:${{ github.sha }} practice-backend:latest
+
+      - name: Build Frontend Image
+        run: |
+          docker build -t practice-frontend:${{ github.sha }} ./frontend
+          docker tag practice-frontend:${{ github.sha }} practice-frontend:latest
+
+  # ── 2. 5개 환경 병렬 Cypress 테스트 ──────────────────────
+  cypress:
+    name: Cypress [${{ matrix.env }}]
+    needs: build
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false   # 하나 실패해도 나머지 환경은 계속 테스트
+      matrix:
+        include:
+          - env: env1
+            frontend_port: 4001
+            backend_port: 8081
+            spec: cypress/e2e/env1.cy.js
+          - env: env2
+            frontend_port: 4002
+            backend_port: 8082
+            spec: cypress/e2e/env2.cy.js
+          - env: env3
+            frontend_port: 4003
+            backend_port: 8083
+            spec: cypress/e2e/env3.cy.js
+          - env: env4
+            frontend_port: 4004
+            backend_port: 8084
+            spec: cypress/e2e/env4.cy.js
+          - env: env5
+            frontend_port: 4005
+            backend_port: 8085
+            spec: cypress/e2e/env5.cy.js
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start ${{ matrix.env }} containers
+        run: |
+          docker run -d \
+            --name backend-${{ matrix.env }}-${{ github.run_id }} \
+            -p ${{ matrix.backend_port }}:8080 \
+            -e APP_ENV=${{ matrix.env }} \
+            practice-backend:latest
+
+          docker run -d \
+            --name frontend-${{ matrix.env }}-${{ github.run_id }} \
+            -p ${{ matrix.frontend_port }}:80 \
+            -e BACKEND_URL=http://host.docker.internal:${{ matrix.backend_port }} \
+            practice-frontend:latest
+
+      - name: Wait for servers to be ready
+        run: |
+          echo "Waiting for backend..."
+          timeout 60 bash -c \
+            'until curl -sf http://localhost:${{ matrix.backend_port }}/api/health; do sleep 3; done'
+          echo "Waiting for frontend..."
+          timeout 30 bash -c \
+            'until curl -sf http://localhost:${{ matrix.frontend_port }}; do sleep 2; done'
+
+      - name: Install Cypress
+        run: npm ci
+
+      - name: Run Cypress Tests
+        run: npx cypress run --spec ${{ matrix.spec }}
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-failure-${{ matrix.env }}
+          path: |
+            cypress/screenshots
+            cypress/videos
+          retention-days: 7
+
+      - name: Stop and remove containers
+        if: always()
+        run: |
+          docker stop backend-${{ matrix.env }}-${{ github.run_id }} || true
+          docker stop frontend-${{ matrix.env }}-${{ github.run_id }} || true
+          docker rm backend-${{ matrix.env }}-${{ github.run_id }} || true
+          docker rm frontend-${{ matrix.env }}-${{ github.run_id }} || true
+
+  # ── 3. 전체 성공 → Auto Merge (PR일 경우) ────────────────
+  on-success:
+    name: Auto Merge on Success
+    needs: cypress
+    if: success() && github.event_name == 'pull_request'
+    runs-on: self-hosted
+    permissions:
+      pull-requests: write
+      contents: write
+
+    steps:
+      - name: Auto Merge PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              merge_method: 'squash',
+              commit_title: `[CI] Auto merged: ${context.payload.pull_request.title}`
+            })
+            console.log('PR merged successfully')
+
+  # ── 4. 실패 → Revert or Block ─────────────────────────────
+  on-failure:
+    name: Handle Failure
+    needs: cypress
+    if: failure()
+    runs-on: self-hosted
+    permissions:
+      pull-requests: write
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # PR 실패: Merge 차단 + 코멘트
+      - name: Block PR and comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## ❌ Cypress E2E 테스트 실패',
+                '',
+                '하나 이상의 환경에서 테스트가 실패했습니다. Merge가 차단됩니다.',
+                '',
+                '**Actions 탭**에서 실패한 환경과 스크린샷을 확인하세요.',
+              ].join('\n')
+            })
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              event: 'REQUEST_CHANGES',
+              body: 'CI 테스트 실패로 인해 Merge가 차단되었습니다.'
+            })
+
+      # 직접 Push 실패: Revert 커밋 생성
+      - name: Revert push on failure
+        if: github.event_name == 'push'
+        run: |
+          git config user.email "ci-bot@company.com"
+          git config user.name "CI Bot"
+          git revert HEAD --no-edit -m 1 2>/dev/null || git revert HEAD --no-edit
+          git push origin ${{ github.ref_name }}
+          echo "Reverted commit due to Cypress test failure"

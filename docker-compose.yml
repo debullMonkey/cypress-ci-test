@@ -1,0 +1,112 @@
+version: '3.8'
+
+# 공통 backend 설정을 YAML anchor로 재사용
+x-backend-common: &backend-common
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+
+# 공통 frontend 설정
+x-frontend-common: &frontend-common
+  build:
+    context: ./frontend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+
+services:
+
+  # ── ENV 1 ─────────────────────────────────────────
+  backend-env1:
+    <<: *backend-common
+    container_name: backend-env1
+    ports:
+      - "8081:8080"
+    environment:
+      - APP_ENV=env1
+
+  frontend-env1:
+    <<: *frontend-common
+    container_name: frontend-env1
+    ports:
+      - "4001:80"
+    environment:
+      - BACKEND_URL=http://backend-env1:8080
+    depends_on:
+      - backend-env1
+
+  # ── ENV 2 ─────────────────────────────────────────
+  backend-env2:
+    <<: *backend-common
+    container_name: backend-env2
+    ports:
+      - "8082:8080"
+    environment:
+      - APP_ENV=env2
+
+  frontend-env2:
+    <<: *frontend-common
+    container_name: frontend-env2
+    ports:
+      - "4002:80"
+    environment:
+      - BACKEND_URL=http://backend-env2:8080
+    depends_on:
+      - backend-env2
+
+  # ── ENV 3 ─────────────────────────────────────────
+  backend-env3:
+    <<: *backend-common
+    container_name: backend-env3
+    ports:
+      - "8083:8080"
+    environment:
+      - APP_ENV=env3
+
+  frontend-env3:
+    <<: *frontend-common
+    container_name: frontend-env3
+    ports:
+      - "4003:80"
+    environment:
+      - BACKEND_URL=http://backend-env3:8080
+    depends_on:
+      - backend-env3
+
+  # ── ENV 4 ─────────────────────────────────────────
+  backend-env4:
+    <<: *backend-common
+    container_name: backend-env4
+    ports:
+      - "8084:8080"
+    environment:
+      - APP_ENV=env4
+
+  frontend-env4:
+    <<: *frontend-common
+    container_name: frontend-env4
+    ports:
+      - "4004:80"
+    environment:
+      - BACKEND_URL=http://backend-env4:8080
+    depends_on:
+      - backend-env4
+
+  # ── ENV 5 ─────────────────────────────────────────
+  backend-env5:
+    <<: *backend-common
+    container_name: backend-env5
+    ports:
+      - "8085:8080"
+    environment:
+      - APP_ENV=env5
+
+  frontend-env5:
+    <<: *frontend-common
+    container_name: frontend-env5
+    ports:
+      - "4005:80"
+    environment:
+      - BACKEND_URL=http://backend-env5:8080
+    depends_on:
+      - backend-env5

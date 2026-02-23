@@ -1,0 +1,8 @@
+node_modules/
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+frontend/node_modules/
+backend/target/
+*.log
+.DS_Store
