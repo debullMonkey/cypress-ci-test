@@ -82,29 +82,17 @@ jobs:
 
       - name: Start ${{ matrix.env }} containers
         run: |
-          docker run -d \
-            --name backend-${{ matrix.env }}-${{ github.run_id }} \
-            -p ${{ matrix.backend_port }}:8080 \
-            -e APP_ENV=${{ matrix.env }} \
-            practice-backend:latest
-
-          docker run -d \
-            --name frontend-${{ matrix.env }}-${{ github.run_id }} \
-            -p ${{ matrix.frontend_port }}:80 \
-            --add-host host.docker.internal:host-gateway \ 
-            -e BACKEND_URL=http://host.docker.internal:${{ matrix.backend_port }} \
-            practice-frontend:latest
+          docker run -d --name backend-${{ matrix.env }}-${{ github.run_id }} -p ${{ matrix.backend_port }}:8080 -e APP_ENV=${{ matrix.env }} practice-backend:latest
+          docker run -d --name frontend-${{ matrix.env }}-${{ github.run_id }} -p ${{ matrix.frontend_port }}:80 --add-host host.docker.internal:host-gateway -e BACKEND_URL=http://host.docker.internal:${{ matrix.backend_port }} practice-frontend:latest
 
       - name: Wait for servers to be ready
         run: |
           echo "Waiting for backend..."
-          timeout 60 bash -c \
-            'until curl -sf http://localhost:${{ matrix.backend_port }}/api/health; do sleep 3; done'
+          timeout 60 bash -c 'until curl -sf http://localhost:${{ matrix.backend_port }}/api/health; do sleep 3; done'
           
           echo "Waiting for frontend..."
           # 👈 타임아웃을 30초에서 60초로 넉넉하게 늘려줍니다.
-          timeout 60 bash -c \
-            'until curl -sf http://localhost:${{ matrix.frontend_port }}; do sleep 2; done'
+          timeout 60 bash -c 'until curl -sf http://localhost:${{ matrix.frontend_port }}; do sleep 2; done'
 
       - name: Install Cypress
         run: npm ci
