@@ -7,28 +7,33 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  # ── 1. Docker 이미지 빌드 ─────────────────────────────────
+ # ── 1. Docker 이미지 빌드 ─────────────────────────────────
   build:
     name: Build Docker Images
-    runs-on: ubuntu-latest  # 사내 VM의 GitHub Actions Runner
-    outputs:
-      backend-image: ${{ steps.meta-backend.outputs.tags }}
-      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
-
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Build Backend Image
         run: |
-          docker build -t practice-backend:${{ github.sha }} ./backend
-          docker tag practice-backend:${{ github.sha }} practice-backend:latest
+          docker build -t practice-backend:latest ./backend
+          docker save practice-backend:latest -o backend.tar   # 👈 도커 이미지를 파일로 저장
 
       - name: Build Frontend Image
         run: |
-          docker build -t practice-frontend:${{ github.sha }} ./frontend
-          docker tag practice-frontend:${{ github.sha }} practice-frontend:latest
+          docker build -t practice-frontend:latest ./frontend
+          docker save practice-frontend:latest -o frontend.tar # 👈 도커 이미지를 파일로 저장
 
+      # 👈 GitHub 임시 공간에 파일 업로드
+      - name: Upload Docker Images
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-docker-images
+          path: |
+            backend.tar
+            frontend.tar
+          retention-days: 1
   # ── 2. 5개 환경 병렬 Cypress 테스트 ──────────────────────
   cypress:
     name: Cypress [${{ matrix.env }}]
@@ -62,29 +67,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
+      # 👈 업로드된 도커 이미지 파일 다운로드
+      - name: Download Docker Images
+        uses: actions/download-artifact@v4
+        with:
+          name: compiled-docker-images
+
+      # 👈 다운로드한 파일을 도커 데몬에 등록
+      - name: Load Docker Images
+        run: |
+          docker load -i backend.tar
+          docker load -i frontend.tar
 
       - name: Start ${{ matrix.env }} containers
         run: |
-          docker run -d \
-            --name backend-${{ matrix.env }}-${{ github.run_id }} \
-            -p ${{ matrix.backend_port }}:8080 \
-            -e APP_ENV=${{ matrix.env }} \
-            practice-backend:latest
-
-          docker run -d \
-            --name frontend-${{ matrix.env }}-${{ github.run_id }} \
-            -p ${{ matrix.frontend_port }}:80 \
-            -e BACKEND_URL=http://host.docker.internal:${{ matrix.backend_port }} \
-            practice-frontend:latest
+          docker run -d --name backend-${{ matrix.env }}-${{ github.run_id }} -p ${{ matrix.backend_port }}:8080 -e APP_ENV=${{ matrix.env }} practice-backend:latest
+          docker run -d --name frontend-${{ matrix.env }}-${{ github.run_id }} -p ${{ matrix.frontend_port }}:80 --add-host host.docker.internal:host-gateway -e BACKEND_URL=http://host.docker.internal:${{ matrix.backend_port }} practice-frontend:latest
 
       - name: Wait for servers to be ready
         run: |
           echo "Waiting for backend..."
-          timeout 60 bash -c \
-            'until curl -sf http://localhost:${{ matrix.backend_port }}/api/health; do sleep 3; done'
+          timeout 60 bash -c 'until curl -sf http://localhost:${{ matrix.backend_port }}/api/health; do sleep 3; done'
+          
           echo "Waiting for frontend..."
-          timeout 30 bash -c \
-            'until curl -sf http://localhost:${{ matrix.frontend_port }}; do sleep 2; done'
+          # 👈 타임아웃을 30초에서 60초로 넉넉하게 늘려줍니다.
+          timeout 60 bash -c 'until curl -sf http://localhost:${{ matrix.frontend_port }}; do sleep 2; done'
 
       - name: Install Cypress
         run: npm ci
