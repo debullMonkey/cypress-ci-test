@@ -157,7 +157,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-           token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
 
       # 직접 Push 실패: Revert 커밋 생성
