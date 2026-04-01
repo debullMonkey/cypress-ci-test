@@ -151,14 +151,14 @@ jobs:
     permissions:
       pull-requests: write
       contents: write
-      workflows: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-          
+
       # 직접 Push 실패: Revert 커밋 생성 (main/develop 브랜치 직접 푸시 상황)
       - name: Revert push on failure
         if: github.event_name == 'push'
