@@ -144,72 +144,56 @@ jobs:
 
   # ── 4. 실패 → Revert or Block ─────────────────────────────
   on-failure:
-    name: Handle Failure
-    needs: cypress
-    if: failure()
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: write
-      actions: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+  name: Handle Failure
+  needs: cypress
+  if: failure()
+  runs-on: ubuntu-latest
+  permissions:
+    pull-requests: write
+    contents: write
+    actions: write
+    workflows: write    # ← 추가
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
 
-      # 직접 Push 실패: Revert 커밋 생성 (main/develop 브랜치 직접 푸시 상황)
-      - name: Revert push on failure
-        if: github.event_name == 'push'
-        run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          
-          echo "❌ 테스트 실패! 마지막 커밋을 되돌립니다."
-          
-          # 1. Revert 실행 (머지 커밋일 경우와 일반 커밋일 경우 모두 대응)
-          # [skip ci]를 넣어야 리버트된 커밋 때문에 Actions가 또 실행되는 걸 막습니다.
-          git revert HEAD --no-edit -m 1 || git revert HEAD --no-edit
-          
-          # 2. 커밋 메시지에 [skip ci] 추가 (선택 사항이지만 권장)
-          git commit --amend -m "$(git log -1 --pretty=%B) [skip ci]"
-          
-          # 3. 푸시
-          git push origin ${{ github.ref_name }}
+    # 직접 Push 실패: Revert 커밋 생성
+    - name: Revert push on failure
+      if: github.event_name == 'push'
+      run: |
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "github-actions[bot]"
+        
+        echo "❌ 테스트 실패! 마지막 커밋을 되돌립니다."
+        git revert HEAD --no-edit -m 1 || git revert HEAD --no-edit
+        git commit --amend -m "$(git log -1 --pretty=%B) [skip ci]"
+        git push origin ${{ github.ref_name }}
 
-      # PR 실패: Merge 차단 + 코멘트
-      - name: Block PR and comment
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: [
-                '## ❌ Cypress E2E 테스트 실패',
-                '',
-                '하나 이상의 환경에서 테스트가 실패했습니다. Merge가 차단됩니다.',
-                '',
-                '**Actions 탭**에서 실패한 환경과 스크린샷을 확인하세요.',
-              ].join('\n')
-            })
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              event: 'REQUEST_CHANGES',
-              body: 'CI 테스트 실패로 인해 Merge가 차단되었습니다.'
-            })
-
-      # 직접 Push 실패: Revert 커밋 생성
-      - name: Revert push on failure
-        if: github.event_name == 'push'
-        run: |
-          git config user.email "ci-bot@company.com"
-          git config user.name "CI Bot"
-          git revert HEAD --no-edit -m 1 2>/dev/null || git revert HEAD --no-edit
-          git push origin ${{ github.ref_name }}
-          echo "Reverted commit due to Cypress test failure"
+    # PR 실패: Merge 차단 + 코멘트
+    - name: Block PR and comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: [
+              '## ❌ Cypress E2E 테스트 실패',
+              '',
+              '하나 이상의 환경에서 테스트가 실패했습니다. Merge가 차단됩니다.',
+              '',
+              '**Actions 탭**에서 실패한 환경과 스크린샷을 확인하세요.',
+            ].join('\n')
+          })
+          await github.rest.pulls.createReview({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: context.issue.number,
+            event: 'REQUEST_CHANGES',
+            body: 'CI 테스트 실패로 인해 Merge가 차단되었습니다.'
+          })
