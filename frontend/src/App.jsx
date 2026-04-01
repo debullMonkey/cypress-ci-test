@@ -29,7 +29,7 @@ export default function App() {
           <div data-testid="health-status">
             <p>상태: <strong data-testid="status">{health.status}</strong></p>
             <p>환경: <strong data-testid="env">{health.env}</strong></p>
-            <p>시간: {health.timestamp}</p>
+            <p>시간: {health.timestamp ||''}</p>
           </div>
         ) : (
           <p>로딩 중...</p>

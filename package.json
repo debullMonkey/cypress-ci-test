@@ -12,6 +12,6 @@
     "cy:run:all": "cypress run --spec 'cypress/e2e/*.cy.js'"
   },
   "devDependencies": {
-    "cypress": "^13.6.0"
+    "cypress": "^15.13.0"
   }
 }
